@@ -13,16 +13,15 @@ import asyncio
 import base64
 import json
 import logging
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
 import azure.cognitiveservices.speech as speechsdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from app.agent_client import AgentClient
-from app.config import Settings
+from app.config import AgentConfig, SpeechConfig
 from app.speech_service import SpeechService
 
 logging.basicConfig(
@@ -31,29 +30,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# -----------------------------------------------------------------------
-# Application lifespan — initialise shared services once
-# -----------------------------------------------------------------------
 
-settings: Settings
-speech: SpeechService
-agent: AgentClient
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    global settings, speech, agent
-    settings = Settings()
-    speech = SpeechService(settings.speech)
-    agent = AgentClient(settings.agent)
-    logger.info("Services initialised (region=%s)", settings.speech.region)
-    yield
-    await speech.close()
-    await agent.close()
-    logger.info("Services shut down")
-
-
-app = FastAPI(title="Voice Agent", lifespan=lifespan)
+app = FastAPI(title="Voice Agent")
 
 # -----------------------------------------------------------------------
 # Health check
@@ -82,6 +60,8 @@ class ClientSession:
     is_recognizing: bool = False
     stt_language: Optional[str] = None
     tts_voice: Optional[str] = None
+    speech: Optional[SpeechService] = None
+    agent: Optional[AgentClient] = None
 
     def reset_conversation(self) -> None:
         self.previous_response_id = None
@@ -103,6 +83,16 @@ class ClientSession:
                 pass
             self.audio_stream = None
         self.recognizer = None
+
+    async def close(self) -> None:
+        """Shut down per-session services."""
+        await self.stop_recognition()
+        if self.speech:
+            await self.speech.close()
+            self.speech = None
+        if self.agent:
+            await self.agent.close()
+            self.agent = None
 
 
 # -----------------------------------------------------------------------
@@ -153,10 +143,14 @@ async def voice_ws(ws: WebSocket) -> None:
 
         await _send_json(ws, {"type": "recognized", "text": text})
 
+        if not session.agent:
+            await _send_json(ws, {"type": "error", "message": "Agent not configured"})
+            return
+
         # Call the agent
         await _send_json(ws, {"type": "status", "message": "Thinking…"})
         try:
-            reply = await agent.send(
+            reply = await session.agent.send(
                 text, previous_response_id=session.previous_response_id
             )
             session.previous_response_id = reply.response_id
@@ -168,6 +162,10 @@ async def voice_ws(ws: WebSocket) -> None:
         await _send_json(ws, {"type": "agent_response", "text": reply.text})
 
         # TTS — sentence-by-sentence, streamed immediately to client
+        if not session.speech:
+            await _send_json(ws, {"type": "tts_end"})
+            return
+
         session.tts_stop_event.clear()
         session.is_speaking = True
         await _send_json(ws, {"type": "status", "message": "Speaking…"})
@@ -194,7 +192,7 @@ async def voice_ws(ws: WebSocket) -> None:
             # Run synthesis and streaming concurrently
             sender_task = asyncio.create_task(stream_audio_to_client())
 
-            await speech.synthesise_sentences(
+            await session.speech.synthesise_sentences(
                 reply.text,
                 on_audio_chunk=on_sentence_audio,
                 stop_event=session.tts_stop_event,
@@ -234,12 +232,51 @@ async def voice_ws(ws: WebSocket) -> None:
             msg_type = msg.get("type")
 
             if msg_type == "config":
-                session.stt_language = msg.get("stt_language", session.stt_language)
-                session.tts_voice = msg.get("tts_voice", session.tts_voice)
+                # Build per-session services from client-provided config
+                speech_region = msg.get("speech_region", "")
+                speech_resource_id = msg.get("speech_resource_id", "")
+                foundry_endpoint = msg.get("foundry_endpoint", "")
+                foundry_project = msg.get("foundry_project", "")
+                foundry_agent_name = msg.get("foundry_agent_name", "")
+                foundry_api_version = msg.get("foundry_api_version", "2025-11-15-preview")
+                tts_output_format = msg.get("tts_output_format", "audio-16khz-32kbitrate-mono-mp3")
+                stt_language = msg.get("stt_language", "en-US")
+                stt_locales_raw = msg.get("stt_locales", "")
+                tts_voice = msg.get("tts_voice", "en-US-AvaMultilingualNeural")
+
+                stt_locales = [l.strip() for l in stt_locales_raw.split(",") if l.strip()] if stt_locales_raw else None
+
+                session.stt_language = stt_language
+                session.tts_voice = tts_voice
+
+                if speech_region and speech_resource_id:
+                    speech_cfg = SpeechConfig(
+                        region=speech_region,
+                        resource_id=speech_resource_id,
+                        stt_language=stt_language,
+                        stt_locales=stt_locales,
+                        tts_voice=tts_voice,
+                        tts_output_format=tts_output_format,
+                    )
+                    session.speech = SpeechService(speech_cfg)
+
+                if foundry_endpoint and foundry_project and foundry_agent_name:
+                    agent_cfg = AgentConfig(
+                        endpoint=foundry_endpoint,
+                        project=foundry_project,
+                        agent_name=foundry_agent_name,
+                        api_version=foundry_api_version,
+                    )
+                    session.agent = AgentClient(agent_cfg)
+
+                logger.info("Session configured (region=%s, agent=%s)", speech_region, foundry_agent_name)
                 await _send_json(ws, {"type": "status", "message": "Config updated"})
 
             elif msg_type == "start_mic":
                 if session.is_recognizing:
+                    continue
+                if not session.speech:
+                    await _send_json(ws, {"type": "error", "message": "Speech not configured"})
                     continue
 
                 # Create recognizer with callbacks
@@ -275,7 +312,7 @@ async def voice_ws(ws: WebSocket) -> None:
                     )
 
                 try:
-                    audio_stream, recognizer = await speech.create_recognizer(
+                    audio_stream, recognizer = await session.speech.create_recognizer(
                         on_recognizing=on_recognizing,
                         on_recognized=on_recognized,
                         on_canceled=on_canceled,
@@ -310,7 +347,7 @@ async def voice_ws(ws: WebSocket) -> None:
             elif msg_type == "greeting":
                 # Proactive greeting: TTS the provided text without invoking the agent
                 greeting_text = msg.get("text", "").strip()
-                if greeting_text:
+                if greeting_text and session.speech:
                     session.tts_stop_event.clear()
                     session.is_speaking = True
                     try:
@@ -333,7 +370,7 @@ async def voice_ws(ws: WebSocket) -> None:
 
                         sender_task_g = asyncio.create_task(stream_greeting_to_client())
 
-                        await speech.synthesise_sentences(
+                        await session.speech.synthesise_sentences(
                             greeting_text,
                             on_audio_chunk=on_greeting_audio,
                             stop_event=session.tts_stop_event,
@@ -369,7 +406,7 @@ async def voice_ws(ws: WebSocket) -> None:
     except Exception:
         logger.exception("Unexpected WebSocket error")
     finally:
-        await session.stop_recognition()
+        await session.close()
         # Stop the recognized queue processor
         await recognized_queue.put(None)
         recognized_task.cancel()

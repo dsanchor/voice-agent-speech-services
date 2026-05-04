@@ -55,10 +55,20 @@ function connectWS() {
     micBtn.disabled = false;
     setState("idle");
 
-    // Send config overrides
-    const cfgMsg = { type: "config" };
-    if (config.sttLanguage) cfgMsg.stt_language = config.sttLanguage;
-    if (config.ttsVoice) cfgMsg.tts_voice = config.ttsVoice;
+    // Send full config from localStorage
+    const cfgMsg = {
+      type: "config",
+      speech_region: config.speechRegion || "",
+      speech_resource_id: config.speechResourceId || "",
+      foundry_endpoint: config.foundryEndpoint || "",
+      foundry_project: config.foundryProject || "",
+      foundry_agent_name: config.foundryAgentName || "",
+      foundry_api_version: config.foundryApiVersion || "",
+      tts_output_format: config.ttsOutputFormat || "",
+      stt_language: config.sttLanguage || "",
+      stt_locales: config.sttLocales || "",
+      tts_voice: config.ttsVoice || "",
+    };
     ws.send(JSON.stringify(cfgMsg));
 
     // Play proactive greeting if enabled

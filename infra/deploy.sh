@@ -13,12 +13,9 @@ set -euo pipefail
 #   --location             Azure region (e.g. swedencentral)
 #   --env-name             Container Apps environment name
 #
-# Required env vars (set before running or pass via --set-env-vars):
-#   AZURE_SPEECH_REGION    Region of the Speech Service (e.g. swedencentral)
-#   AZURE_SPEECH_RESOURCE_ID  Full resource ID of the Speech Service
-#   FOUNDRY_ENDPOINT       Foundry base endpoint URL (up to /api/projects)
-#   FOUNDRY_PROJECT        Foundry project name
-#   FOUNDRY_AGENT_NAME     Name of the agent to call
+# Note: App configuration (speech region, endpoint, agent name, etc.) is now
+# provided per-session by the frontend — no env vars needed for the app itself.
+# The managed identity still needs RBAC roles for token-based auth.
 ###############################################################################
 
 usage() {
@@ -49,13 +46,6 @@ done
 
 [[ -z "$RESOURCE_GROUP" || -z "$APP_NAME" || -z "$IMAGE" || -z "$SPEECH_RESOURCE_ID" || -z "$FOUNDRY_RESOURCE_ID" || -z "$LOCATION" || -z "$ENV_NAME" ]] && usage
 
-# Require environment variables for app configuration
-: "${AZURE_SPEECH_REGION:?Set AZURE_SPEECH_REGION before running}"
-: "${AZURE_SPEECH_RESOURCE_ID:?Set AZURE_SPEECH_RESOURCE_ID before running}"
-: "${FOUNDRY_ENDPOINT:?Set FOUNDRY_ENDPOINT before running}"
-: "${FOUNDRY_PROJECT:?Set FOUNDRY_PROJECT before running}"
-: "${FOUNDRY_AGENT_NAME:?Set FOUNDRY_AGENT_NAME before running}"
-
 echo "==> Creating resource group: $RESOURCE_GROUP in $LOCATION"
 az group create \
   --name "$RESOURCE_GROUP" \
@@ -78,12 +68,6 @@ az containerapp create \
   --target-port 8000 \
   --ingress external \
   --system-assigned \
-  --env-vars \
-    "AZURE_SPEECH_REGION=$AZURE_SPEECH_REGION" \
-    "AZURE_SPEECH_RESOURCE_ID=$AZURE_SPEECH_RESOURCE_ID" \
-    "FOUNDRY_ENDPOINT=$FOUNDRY_ENDPOINT" \
-    "FOUNDRY_PROJECT=$FOUNDRY_PROJECT" \
-    "FOUNDRY_AGENT_NAME=$FOUNDRY_AGENT_NAME" \
   --output none
 
 echo "==> Retrieving managed identity principal ID"
