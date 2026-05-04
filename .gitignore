@@ -9,3 +9,8 @@
 __pycache__/
 .env
 =2.0.0
+
+# Config samples: only track the two canonical ones
+config-samples/*
+!config-samples/all-fields.json
+!config-samples/mandatory-only.json
