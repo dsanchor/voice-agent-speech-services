@@ -44,7 +44,7 @@ class AgentConfig:
     project: str = field(default_factory=lambda: os.environ["FOUNDRY_PROJECT"])
     agent_name: str = field(default_factory=lambda: os.environ["FOUNDRY_AGENT_NAME"])
     api_version: str = field(
-        default_factory=lambda: os.getenv("FOUNDRY_API_VERSION", "2025-03-01-preview")
+        default_factory=lambda: os.getenv("FOUNDRY_API_VERSION", "2025-11-15-preview")
     )
 
     @property
