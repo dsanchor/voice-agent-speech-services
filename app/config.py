@@ -21,6 +21,14 @@ class SpeechConfig:
     stt_language: str = field(
         default_factory=lambda: os.getenv("STT_LANGUAGE", "en-US")
     )
+    stt_locales: list[str] = field(
+        default_factory=lambda: os.getenv("STT_LOCALES", "en-US").split(",")
+    )
+    tts_voice: str = field(
+        default_factory=lambda: os.getenv(
+            "TTS_VOICE", "en-US-AvaMultilingualNeural"
+        )
+    )
     tts_output_format: str = field(
         default_factory=lambda: os.getenv(
             "TTS_OUTPUT_FORMAT", "audio-16khz-32kbitrate-mono-mp3"

@@ -9,7 +9,7 @@
 <body>
   <div class="container">
     <h1>🎙️ Voice Agent</h1>
-    <p class="subtitle">Speak to interact with the AI agent</p>
+    <p class="subtitle">Continuous conversation with the AI agent</p>
 
     <div class="connection">
       <span id="conn-dot" class="dot"></span>
@@ -17,20 +17,21 @@
     </div>
 
     <div class="controls">
-      <button id="record-btn" disabled aria-label="Record">
+      <button id="mic-btn" disabled aria-label="Start Microphone">
         <span class="icon"></span>
       </button>
+      <button id="stop-speaking-btn" class="btn-secondary" disabled>Stop Speaking</button>
+      <button id="clear-btn" class="btn-secondary">Clear Chat</button>
+    </div>
+
+    <div id="status-bar" class="status-bar">
       <span id="status-text">Connecting…</span>
     </div>
 
-    <div class="card">
-      <div class="card-label">You said</div>
-      <div id="transcript" class="card-body placeholder">Press the button and speak…</div>
-    </div>
+    <div id="partial-transcript" class="partial-transcript"></div>
 
-    <div class="card">
-      <div class="card-label">Agent response</div>
-      <div id="agent-response" class="card-body placeholder">Waiting for input…</div>
+    <div id="chat-history" class="chat-history">
+      <!-- Chat messages are appended here -->
     </div>
   </div>
 

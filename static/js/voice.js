@@ -1,25 +1,33 @@
 /**
- * voice.js — Browser-side voice capture, WebSocket transport, and TTS playback.
+ * voice.js — Streaming voice capture, WebSocket transport, and TTS playback.
  *
- * Audio is captured at 16 kHz 16-bit mono PCM via AudioWorklet, wrapped in a
- * minimal WAV header, and sent as a base64-encoded blob over a JSON WebSocket.
+ * Audio is captured at 16 kHz 16-bit mono PCM via ScriptProcessorNode and
+ * streamed continuously as base64 chunks over a JSON WebSocket.
  */
 
 // ── DOM refs ──────────────────────────────────────────────────────────
-const recordBtn      = document.getElementById("record-btn");
-const statusText     = document.getElementById("status-text");
-const connDot        = document.getElementById("conn-dot");
-const connLabel      = document.getElementById("conn-label");
-const transcriptEl   = document.getElementById("transcript");
-const agentReplyEl   = document.getElementById("agent-response");
+const micBtn          = document.getElementById("mic-btn");
+const stopSpeakBtn    = document.getElementById("stop-speaking-btn");
+const clearBtn        = document.getElementById("clear-btn");
+const statusText      = document.getElementById("status-text");
+const connDot         = document.getElementById("conn-dot");
+const connLabel       = document.getElementById("conn-label");
+const partialEl       = document.getElementById("partial-transcript");
+const chatHistory     = document.getElementById("chat-history");
 
 // ── State ─────────────────────────────────────────────────────────────
 let ws               = null;
 let audioCtx         = null;
 let mediaStream      = null;
-let mediaRecorder    = null;
-let recordedChunks   = [];
-let isRecording      = false;
+let processor        = null;
+let source           = null;
+let isMicActive      = false;
+let isPlaying        = false;
+
+// Audio playback queue
+let playbackQueue    = [];
+let playbackCtx      = null;
+let currentSource    = null;
 
 // ── WebSocket ─────────────────────────────────────────────────────────
 
@@ -30,14 +38,15 @@ function connectWS() {
   ws.addEventListener("open", () => {
     connDot.classList.add("connected");
     connLabel.textContent = "Connected";
-    recordBtn.disabled = false;
-    setStatus("Ready — tap the button to speak");
+    micBtn.disabled = false;
+    setStatus("Ready — click Start Microphone to begin");
   });
 
   ws.addEventListener("close", () => {
     connDot.classList.remove("connected");
     connLabel.textContent = "Disconnected";
-    recordBtn.disabled = true;
+    micBtn.disabled = true;
+    if (isMicActive) stopMic();
     setStatus("Connection lost — reconnecting…");
     setTimeout(connectWS, 2000);
   });
@@ -58,23 +67,30 @@ function handleServerMessage(msg) {
       setStatus(msg.message);
       break;
 
-    case "transcript":
-      transcriptEl.textContent = msg.text;
-      transcriptEl.classList.remove("placeholder");
+    case "recognizing":
+      partialEl.textContent = msg.text;
+      break;
+
+    case "recognized":
+      partialEl.textContent = "";
+      addChatMessage("user", msg.text);
       break;
 
     case "agent_response":
-      agentReplyEl.textContent = msg.text;
-      agentReplyEl.classList.remove("placeholder");
+      addChatMessage("agent", msg.text);
       break;
 
     case "tts_audio":
-      playAudio(msg.data, msg.format);
+      queueAudio(msg.data);
+      break;
+
+    case "tts_end":
+      // All audio chunks received
+      stopSpeakBtn.disabled = playbackQueue.length === 0 && !isPlaying;
       break;
 
     case "error":
       setStatus(`⚠️ ${msg.message}`);
-      enableRecording();
       break;
 
     default:
@@ -82,17 +98,17 @@ function handleServerMessage(msg) {
   }
 }
 
-// ── Recording ─────────────────────────────────────────────────────────
+// ── Microphone control ────────────────────────────────────────────────
 
-recordBtn.addEventListener("click", async () => {
-  if (isRecording) {
-    stopRecording();
+micBtn.addEventListener("click", async () => {
+  if (isMicActive) {
+    stopMic();
   } else {
-    await startRecording();
+    await startMic();
   }
 });
 
-async function startRecording() {
+async function startMic() {
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -105,16 +121,14 @@ async function startRecording() {
     return;
   }
 
-  // Use AudioContext to resample to 16 kHz PCM
   audioCtx = new AudioContext({ sampleRate: 16000 });
-  const source = audioCtx.createMediaStreamSource(mediaStream);
+  source = audioCtx.createMediaStreamSource(mediaStream);
 
-  // ScriptProcessorNode is deprecated but widely supported and simple.
-  // A production build should migrate to AudioWorkletNode.
-  const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-  recordedChunks = [];
+  // ScriptProcessorNode sends audio chunks every ~256ms at 4096 samples/16kHz
+  processor = audioCtx.createScriptProcessor(4096, 1, 1);
 
   processor.onaudioprocess = (e) => {
+    if (!isMicActive) return;
     const float32 = e.inputBuffer.getChannelData(0);
     // Convert float32 → int16 PCM
     const int16 = new Int16Array(float32.length);
@@ -122,23 +136,38 @@ async function startRecording() {
       const s = Math.max(-1, Math.min(1, float32[i]));
       int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
-    recordedChunks.push(int16);
+    // Send as base64
+    const b64 = arrayBufferToBase64(int16.buffer);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "audio", data: b64 }));
+    }
   };
 
   source.connect(processor);
   processor.connect(audioCtx.destination);
 
-  isRecording = true;
-  recordBtn.classList.add("recording");
-  setStatus("Listening… tap to stop");
+  isMicActive = true;
+  micBtn.classList.add("active");
+  micBtn.setAttribute("aria-label", "Stop Microphone");
+
+  // Tell server to start continuous recognition
+  ws.send(JSON.stringify({ type: "start_mic" }));
 }
 
-function stopRecording() {
-  isRecording = false;
-  recordBtn.classList.remove("recording");
-  recordBtn.disabled = true;
+function stopMic() {
+  isMicActive = false;
+  micBtn.classList.remove("active");
+  micBtn.setAttribute("aria-label", "Start Microphone");
+  partialEl.textContent = "";
 
-  // Stop mic
+  if (processor) {
+    processor.disconnect();
+    processor = null;
+  }
+  if (source) {
+    source.disconnect();
+    source = null;
+  }
   if (mediaStream) {
     mediaStream.getTracks().forEach((t) => t.stop());
     mediaStream = null;
@@ -148,46 +177,101 @@ function stopRecording() {
     audioCtx = null;
   }
 
-  setStatus("Processing…");
-
-  // Merge chunks into a single PCM buffer
-  const totalLen = recordedChunks.reduce((n, c) => n + c.length, 0);
-  const pcm = new Int16Array(totalLen);
-  let offset = 0;
-  for (const chunk of recordedChunks) {
-    pcm.set(chunk, offset);
-    offset += chunk.length;
+  // Tell server to stop recognition
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stop_mic" }));
   }
-  recordedChunks = [];
-
-  // Wrap in WAV header for the backend Speech SDK
-  const wav = encodeWAV(pcm, 16000);
-  const b64 = arrayBufferToBase64(wav);
-
-  ws.send(JSON.stringify({ type: "audio", data: b64 }));
 }
 
-// ── Audio playback ────────────────────────────────────────────────────
+// ── Stop Speaking ─────────────────────────────────────────────────────
 
-async function playAudio(base64Data, format) {
-  setStatus("Playing response…");
+stopSpeakBtn.addEventListener("click", () => {
+  stopPlayback();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stop_speaking" }));
+  }
+});
+
+function stopPlayback() {
+  playbackQueue = [];
+  if (currentSource) {
+    try { currentSource.stop(); } catch (_) {}
+    currentSource = null;
+  }
+  isPlaying = false;
+  stopSpeakBtn.disabled = true;
+}
+
+// ── Clear Chat ────────────────────────────────────────────────────────
+
+clearBtn.addEventListener("click", () => {
+  chatHistory.innerHTML = "";
+  partialEl.textContent = "";
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "clear_chat" }));
+  }
+});
+
+// ── Audio playback queue ──────────────────────────────────────────────
+
+function queueAudio(base64Data) {
+  playbackQueue.push(base64Data);
+  stopSpeakBtn.disabled = false;
+  if (!isPlaying) {
+    playNext();
+  }
+}
+
+async function playNext() {
+  if (playbackQueue.length === 0) {
+    isPlaying = false;
+    stopSpeakBtn.disabled = true;
+    return;
+  }
+
+  isPlaying = true;
+  const b64 = playbackQueue.shift();
+
   try {
-    const raw = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    const playCtx = new AudioContext();
-    const buffer = await playCtx.decodeAudioData(raw.buffer);
-    const src = playCtx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(playCtx.destination);
-    src.onended = () => {
-      enableRecording();
-      setStatus("Ready — tap the button to speak");
+    if (!playbackCtx || playbackCtx.state === "closed") {
+      playbackCtx = new AudioContext();
+    }
+    const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const buffer = await playbackCtx.decodeAudioData(raw.buffer.slice(0));
+    currentSource = playbackCtx.createBufferSource();
+    currentSource.buffer = buffer;
+    currentSource.connect(playbackCtx.destination);
+    currentSource.onended = () => {
+      currentSource = null;
+      playNext();
     };
-    src.start();
+    currentSource.start();
   } catch (err) {
     console.error("Playback error:", err);
-    setStatus("⚠️ Could not play audio");
-    enableRecording();
+    currentSource = null;
+    playNext(); // Skip failed chunk
   }
+}
+
+// ── Chat history ──────────────────────────────────────────────────────
+
+function addChatMessage(role, text) {
+  const div = document.createElement("div");
+  div.className = `chat-msg ${role}`;
+
+  const label = document.createElement("div");
+  label.className = "msg-label";
+  label.textContent = role === "user" ? "You" : "Agent";
+
+  const body = document.createElement("div");
+  body.textContent = text;
+
+  div.appendChild(label);
+  div.appendChild(body);
+  chatHistory.appendChild(div);
+
+  // Auto-scroll to bottom
+  chatHistory.scrollTop = chatHistory.scrollHeight;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -196,57 +280,16 @@ function setStatus(text) {
   statusText.textContent = text;
 }
 
-function enableRecording() {
-  recordBtn.disabled = false;
-}
-
 function arrayBufferToBase64(buffer) {
-  let binary = "";
   const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  let binary = "";
+  // Process in chunks to avoid call stack overflow on large buffers
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
   }
   return btoa(binary);
-}
-
-/** Encode 16-bit PCM samples into a WAV file ArrayBuffer. */
-function encodeWAV(samples, sampleRate) {
-  const byteRate = sampleRate * 2; // 16-bit mono
-  const blockAlign = 2;
-  const dataBytes = samples.length * 2;
-  const buffer = new ArrayBuffer(44 + dataBytes);
-  const view = new DataView(buffer);
-
-  // RIFF header
-  writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataBytes, true);
-  writeString(view, 8, "WAVE");
-
-  // fmt sub-chunk
-  writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true);           // sub-chunk size
-  view.setUint16(20, 1, true);            // PCM format
-  view.setUint16(22, 1, true);            // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);           // bits per sample
-
-  // data sub-chunk
-  writeString(view, 36, "data");
-  view.setUint32(40, dataBytes, true);
-
-  // PCM samples
-  const int16View = new Int16Array(buffer, 44);
-  int16View.set(samples);
-
-  return buffer;
-}
-
-function writeString(view, offset, str) {
-  for (let i = 0; i < str.length; i++) {
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────

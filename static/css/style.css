@@ -16,6 +16,8 @@
   --clr-accent: #58a6ff;
   --clr-danger: #f85149;
   --clr-success: #3fb950;
+  --clr-user-bg: #1c2a3a;
+  --clr-agent-bg: #1a2332;
   --radius: 12px;
 }
 
@@ -38,7 +40,7 @@ body {
 /* ── Layout ────────────────────────────────────────────────────────── */
 .container {
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
 }
 
 h1 {
@@ -49,95 +51,7 @@ h1 {
 .subtitle {
   color: var(--clr-muted);
   font-size: 0.875rem;
-  margin-bottom: 2rem;
-}
-
-/* ── Cards ─────────────────────────────────────────────────────────── */
-.card {
-  background: var(--clr-surface);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-.card-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--clr-muted);
-  margin-bottom: 0.5rem;
-}
-
-.card-body {
-  font-size: 0.95rem;
-  line-height: 1.5;
-  min-height: 1.5em;
-  white-space: pre-wrap;
-}
-
-.card-body.placeholder {
-  color: var(--clr-muted);
-  font-style: italic;
-}
-
-/* ── Record button ─────────────────────────────────────────────────── */
-.controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
   margin-bottom: 1.5rem;
-}
-
-#record-btn {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 3px solid var(--clr-accent);
-  background: transparent;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s, border-color 0.2s, transform 0.1s;
-}
-
-#record-btn:hover {
-  background: rgba(88, 166, 255, 0.1);
-}
-
-#record-btn:active {
-  transform: scale(0.95);
-}
-
-#record-btn .icon {
-  width: 28px;
-  height: 28px;
-  background: var(--clr-accent);
-  border-radius: 50%;
-  transition: border-radius 0.2s, background 0.2s;
-}
-
-#record-btn.recording {
-  border-color: var(--clr-danger);
-}
-
-#record-btn.recording .icon {
-  background: var(--clr-danger);
-  border-radius: 4px;
-  width: 24px;
-  height: 24px;
-}
-
-#record-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-#status-text {
-  font-size: 0.85rem;
-  color: var(--clr-muted);
 }
 
 /* ── Connection indicator ──────────────────────────────────────────── */
@@ -147,7 +61,7 @@ h1 {
   gap: 0.4rem;
   font-size: 0.8rem;
   color: var(--clr-muted);
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .dot {
@@ -159,4 +73,169 @@ h1 {
 
 .dot.connected {
   background: var(--clr-success);
+}
+
+/* ── Controls ──────────────────────────────────────────────────────── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+#mic-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid var(--clr-accent);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+#mic-btn:hover {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+#mic-btn:active {
+  transform: scale(0.95);
+}
+
+#mic-btn .icon {
+  width: 24px;
+  height: 24px;
+  background: var(--clr-accent);
+  border-radius: 50%;
+  transition: border-radius 0.2s, background 0.2s;
+}
+
+#mic-btn.active {
+  border-color: var(--clr-danger);
+  animation: pulse 1.5s infinite;
+}
+
+#mic-btn.active .icon {
+  background: var(--clr-danger);
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+}
+
+#mic-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(248, 81, 73, 0); }
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface);
+  color: var(--clr-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--clr-border);
+  border-color: var(--clr-muted);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Status bar ────────────────────────────────────────────────────── */
+.status-bar {
+  font-size: 0.82rem;
+  color: var(--clr-muted);
+  margin-bottom: 0.75rem;
+  min-height: 1.2em;
+}
+
+/* ── Partial transcript ────────────────────────────────────────────── */
+.partial-transcript {
+  font-size: 0.9rem;
+  color: var(--clr-muted);
+  font-style: italic;
+  min-height: 1.4em;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--clr-accent);
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.partial-transcript:empty {
+  opacity: 0;
+  border-left-color: transparent;
+}
+
+/* ── Chat history ──────────────────────────────────────────────────── */
+.chat-history {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+.chat-history::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-history::-webkit-scrollbar-thumb {
+  background: var(--clr-border);
+  border-radius: 3px;
+}
+
+.chat-msg {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-msg.user {
+  background: var(--clr-user-bg);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  align-self: flex-end;
+  max-width: 85%;
+}
+
+.chat-msg.agent {
+  background: var(--clr-agent-bg);
+  border: 1px solid var(--clr-border);
+  align-self: flex-start;
+  max-width: 85%;
+}
+
+.chat-msg .msg-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--clr-muted);
+  margin-bottom: 0.3rem;
+}
+
+.chat-msg.user .msg-label {
+  color: var(--clr-accent);
+}
+
+.chat-msg.agent .msg-label {
+  color: var(--clr-success);
 }
