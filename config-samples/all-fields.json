@@ -1,0 +1,12 @@
+{
+  "speechRegion": "eastus2",
+  "speechResourceId": "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<name>",
+  "foundryEndpoint": "https://your-foundry.services.ai.azure.com",
+  "foundryProject": "your-project",
+  "foundryAgentName": "YourAgentName",
+  "foundryApiVersion": "2025-11-15-preview",
+  "ttsOutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+  "sttLanguage": "en-US",
+  "sttLocales": "en-US,es-ES",
+  "ttsVoice": "en-US-AvaMultilingualNeural"
+}

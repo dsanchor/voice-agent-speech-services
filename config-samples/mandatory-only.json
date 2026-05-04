@@ -1,0 +1,7 @@
+{
+  "speechRegion": "eastus2",
+  "speechResourceId": "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<name>",
+  "foundryEndpoint": "https://your-foundry.services.ai.azure.com",
+  "foundryProject": "your-project",
+  "foundryAgentName": "YourAgentName"
+}

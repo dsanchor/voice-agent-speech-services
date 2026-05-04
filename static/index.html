@@ -3,38 +3,94 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice Agent</title>
+  <title>Voice Agent — Settings</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
-<body>
-  <div class="container">
-    <h1>🎙️ Voice Agent</h1>
-    <p class="subtitle">Continuous conversation with the AI agent</p>
+<body class="config-page">
+  <div class="config-container">
+    <header class="config-header">
+      <h1>🎙️ Voice Agent</h1>
+      <p class="subtitle">Configure your session parameters</p>
+    </header>
 
-    <div class="connection">
-      <span id="conn-dot" class="dot"></span>
-      <span id="conn-label">Disconnected</span>
-    </div>
+    <form id="config-form" autocomplete="off">
+      <!-- Connection (mandatory) -->
+      <section class="form-section">
+        <h2 class="section-title">Connection</h2>
 
-    <div class="controls">
-      <button id="mic-btn" disabled aria-label="Start Microphone">
-        <span class="icon"></span>
-      </button>
-      <button id="stop-speaking-btn" class="btn-secondary" disabled>Stop Speaking</button>
-      <button id="clear-btn" class="btn-secondary">Clear Chat</button>
-    </div>
+        <div class="form-group">
+          <label for="speechRegion">Speech Region <span class="required">*</span></label>
+          <input type="text" id="speechRegion" name="speechRegion" placeholder="eastus2" required />
+        </div>
 
-    <div id="status-bar" class="status-bar">
-      <span id="status-text">Connecting…</span>
-    </div>
+        <div class="form-group">
+          <label for="speechResourceId">Speech Resource ID <span class="required">*</span></label>
+          <input type="text" id="speechResourceId" name="speechResourceId" placeholder="/subscriptions/..." required />
+        </div>
 
-    <div id="partial-transcript" class="partial-transcript"></div>
+        <div class="form-group">
+          <label for="foundryEndpoint">Foundry Endpoint <span class="required">*</span></label>
+          <input type="text" id="foundryEndpoint" name="foundryEndpoint" placeholder="https://your-foundry.services.ai.azure.com" required />
+        </div>
 
-    <div id="chat-history" class="chat-history">
-      <!-- Chat messages are appended here -->
-    </div>
+        <div class="form-group">
+          <label for="foundryProject">Foundry Project <span class="required">*</span></label>
+          <input type="text" id="foundryProject" name="foundryProject" placeholder="your-project" required />
+        </div>
+
+        <div class="form-group">
+          <label for="foundryAgentName">Foundry Agent Name <span class="required">*</span></label>
+          <input type="text" id="foundryAgentName" name="foundryAgentName" placeholder="YourAgentName" required />
+        </div>
+      </section>
+
+      <!-- Advanced Settings (collapsible) -->
+      <section class="form-section collapsible">
+        <button type="button" id="toggle-advanced" class="section-toggle">
+          <span class="toggle-icon">▶</span> Advanced Settings
+        </button>
+
+        <div id="advanced-fields" class="collapsible-content hidden">
+          <div class="form-group">
+            <label for="foundryApiVersion">API Version</label>
+            <input type="text" id="foundryApiVersion" name="foundryApiVersion" value="2025-11-15-preview" />
+          </div>
+
+          <div class="form-group">
+            <label for="ttsOutputFormat">TTS Output Format</label>
+            <input type="text" id="ttsOutputFormat" name="ttsOutputFormat" value="audio-16khz-32kbitrate-mono-mp3" />
+          </div>
+
+          <div class="form-group">
+            <label for="sttLanguage">STT Language</label>
+            <input type="text" id="sttLanguage" name="sttLanguage" value="en-US" />
+          </div>
+
+          <div class="form-group">
+            <label for="sttLocales">STT Locales</label>
+            <input type="text" id="sttLocales" name="sttLocales" value="en-US" />
+          </div>
+
+          <div class="form-group">
+            <label for="ttsVoice">TTS Voice</label>
+            <input type="text" id="ttsVoice" name="ttsVoice" value="en-US-AvaMultilingualNeural" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="button" id="load-btn" class="btn-secondary">📂 Load Settings</button>
+        <button type="submit" id="start-btn" class="btn-primary">Start Voice Session →</button>
+      </div>
+    </form>
+
+    <input type="file" id="file-input" accept=".json" hidden />
   </div>
 
-  <script src="/js/voice.js"></script>
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/config.js"></script>
 </body>
 </html>
