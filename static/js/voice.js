@@ -38,6 +38,7 @@ let mic = null;
 let player = new AudioPlayer();
 let micActive = false;
 let currentState = "idle"; // idle, listening, processing, speaking
+let muteAudio = false; // true after barge-in, cleared on new agent_response
 
 // ── Session info display ──────────────────────────────────────────────
 sessionInfo.textContent = `${config.foundryAgentName || "Agent"} · ${config.sttLanguage || "en-US"}`;
@@ -101,10 +102,12 @@ function handleMessage(msg) {
       break;
 
     case "agent_response":
+      muteAudio = false; // new response cycle — accept its audio
       addBubble("agent", msg.text);
       break;
 
     case "tts_audio":
+      if (muteAudio) break; // drop stale audio from interrupted response
       player.enqueue(msg.data);
       setState("speaking");
       break;
@@ -165,6 +168,7 @@ async function startMic() {
   setState("listening");
 
   // Barge-in: stop playback and tell backend to stop TTS streaming
+  muteAudio = true;
   player.stop();
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "stop_speaking" }));
