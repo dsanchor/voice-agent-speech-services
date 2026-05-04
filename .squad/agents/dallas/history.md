@@ -40,3 +40,19 @@
 
 **Impact:** All deployments now require both env vars. URL pattern remains: `{FOUNDRY_ENDPOINT}/{FOUNDRY_PROJECT}/openai/responses?api-version=...`
 
+## Follow-Up: Eliminate Env Vars — Per-Session Config (2026-05-04T23:53:00Z)
+
+**Completion:** All environment variables removed from app configuration.
+
+- `app/config.py`: Removed `os.environ` / `os.getenv` / `python-dotenv`; dataclasses now require explicit constructor params
+- `app/main.py`: Removed global `lifespan` services; `SpeechService` and `AgentClient` instantiated per-session from WebSocket `config` message
+- `static/js/voice.js`: Config message now sends all 10 fields from localStorage
+- `infra/deploy.sh`: No longer injects env vars to Container App (RBAC roles remain)
+- Deleted `.env.example`; removed `python-dotenv` from requirements
+- **Commit:** 2ee559a
+
+**Learnings:**
+- Per-session service instantiation means each WebSocket connection is fully independent — useful for multi-tenant or multi-config scenarios
+- `DefaultAzureCredential` is a runtime concern (managed identity), not config — correctly left in place
+- Frontend localStorage is now the single source of truth for all config fields
+
