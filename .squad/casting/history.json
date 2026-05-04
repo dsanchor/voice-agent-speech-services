@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "assignments": [
+    {
+      "assignment_id": "voice-agent-speech-services-001",
+      "universe": "Alien",
+      "created_at": "2026-05-04T16:51:23Z",
+      "agents": ["Ripley", "Dallas", "Ash", "Lambert"],
+      "reason": "4-agent team, Alien universe (capacity 8) fits. Communication under pressure resonates with real-time voice streaming."
+    }
+  ]
+}

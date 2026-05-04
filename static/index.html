@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Agent</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🎙️ Voice Agent</h1>
+    <p class="subtitle">Speak to interact with the AI agent</p>
+
+    <div class="connection">
+      <span id="conn-dot" class="dot"></span>
+      <span id="conn-label">Disconnected</span>
+    </div>
+
+    <div class="controls">
+      <button id="record-btn" disabled aria-label="Record">
+        <span class="icon"></span>
+      </button>
+      <span id="status-text">Connecting…</span>
+    </div>
+
+    <div class="card">
+      <div class="card-label">You said</div>
+      <div id="transcript" class="card-body placeholder">Press the button and speak…</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Agent response</div>
+      <div id="agent-response" class="card-body placeholder">Waiting for input…</div>
+    </div>
+  </div>
+
+  <script src="/js/voice.js"></script>
+</body>
+</html>
