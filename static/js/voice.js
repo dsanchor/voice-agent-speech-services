@@ -81,7 +81,7 @@ function connectWS() {
 function handleMessage(msg) {
   switch (msg.type) {
     case "status":
-      showToast(msg.message, "info");
+      // Status updates reflected in mic state label only — no popup
       break;
 
     case "recognizing":
