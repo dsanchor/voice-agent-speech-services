@@ -8,5 +8,7 @@
   "ttsOutputFormat": "audio-16khz-32kbitrate-mono-mp3",
   "sttLanguage": "es-ES",
   "sttLocales": "es-ES",
-  "ttsVoice": "es-ES-Ximena:DragonHDLatestNeural"
+  "ttsVoice": "es-ES-Ximena:DragonHDLatestNeural",
+  "enableProactiveGreeting": true,
+  "proactiveGreetingText": "Hola, ¡Soy tu super agente! ¿en qué puedo ayudarte hoy?"
 }

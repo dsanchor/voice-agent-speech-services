@@ -113,7 +113,7 @@ function handleMessage(msg) {
       if (greetingPending) {
         greetingPending = false;
         setState("idle");
-        startMic();
+        // Don't auto-start mic — let user activate it manually
       } else if (!player.isPlaying) {
         setState(micActive ? "listening" : "idle");
       }
@@ -234,6 +234,8 @@ function playGreeting() {
   greetingPending = true;
   ws.send(JSON.stringify({ type: "greeting", text: text }));
 }
+
+// After greeting TTS ends, just go idle — don't auto-start mic
 
 // ── Boot ──────────────────────────────────────────────────────────────
 connectWS();

@@ -122,6 +122,18 @@ body {
   opacity: 0.6;
 }
 
+.form-group.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.form-group.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 /* ── Collapsible ───────────────────────────────────────────────────── */
 .collapsible {
   padding: 0;
