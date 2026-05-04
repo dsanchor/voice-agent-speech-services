@@ -59,6 +59,9 @@ function connectWS() {
     if (config.sttLanguage) cfgMsg.stt_language = config.sttLanguage;
     if (config.ttsVoice) cfgMsg.tts_voice = config.ttsVoice;
     ws.send(JSON.stringify(cfgMsg));
+
+    // Play proactive greeting if enabled
+    playGreeting();
   });
 
   ws.addEventListener("close", () => {
@@ -207,6 +210,34 @@ function showToast(message, type = "info") {
     toast.classList.add("fade-out");
     setTimeout(() => toast.remove(), 300);
   }, 3000);
+}
+
+// ── Proactive Greeting ────────────────────────────────────────────────
+
+function playGreeting() {
+  if (config.enableProactiveGreeting === false) return;
+  const text = config.proactiveGreetingText || "Hello! How can I help you today?";
+
+  // Show greeting in transcript
+  addBubble("agent", text);
+
+  if (!window.speechSynthesis) {
+    startMic();
+    return;
+  }
+
+  setState("speaking");
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = config.sttLanguage || "en-US";
+  utterance.onend = () => {
+    setState("idle");
+    startMic();
+  };
+  utterance.onerror = () => {
+    setState("idle");
+    startMic();
+  };
+  speechSynthesis.speak(utterance);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────

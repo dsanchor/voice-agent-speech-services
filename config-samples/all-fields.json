@@ -8,5 +8,7 @@
   "ttsOutputFormat": "audio-16khz-32kbitrate-mono-mp3",
   "sttLanguage": "en-US",
   "sttLocales": "en-US,es-ES",
-  "ttsVoice": "en-US-AvaMultilingualNeural"
+  "ttsVoice": "en-US-AvaMultilingualNeural",
+  "enableProactiveGreeting": true,
+  "proactiveGreetingText": "Hello! How can I help you today?"
 }

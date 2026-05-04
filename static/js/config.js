@@ -19,7 +19,11 @@ const ALL_FIELDS = [
   "sttLanguage",
   "sttLocales",
   "ttsVoice",
+  "enableProactiveGreeting",
+  "proactiveGreetingText",
 ];
+
+const CHECKBOX_FIELDS = ["enableProactiveGreeting"];
 
 // ── DOM refs ──────────────────────────────────────────────────────────
 const form = document.getElementById("config-form");
@@ -73,7 +77,12 @@ form.addEventListener("submit", (e) => {
   const cfg = {};
   for (const field of ALL_FIELDS) {
     const el = document.getElementById(field);
-    if (el) cfg[field] = el.value.trim();
+    if (!el) continue;
+    if (CHECKBOX_FIELDS.includes(field)) {
+      cfg[field] = el.checked;
+    } else {
+      cfg[field] = el.value.trim();
+    }
   }
 
   // Validate mandatory
@@ -93,7 +102,10 @@ form.addEventListener("submit", (e) => {
 function populateForm(cfg) {
   for (const field of ALL_FIELDS) {
     const el = document.getElementById(field);
-    if (el && cfg[field] !== undefined) {
+    if (!el || cfg[field] === undefined) continue;
+    if (CHECKBOX_FIELDS.includes(field)) {
+      el.checked = !!cfg[field];
+    } else {
       el.value = cfg[field];
     }
   }
