@@ -53,7 +53,7 @@ class AgentConfig:
     @property
     def responses_url(self) -> str:
         base = self.endpoint.rstrip("/")
-        return f"{base}/{self.project}/openai/responses?api-version={self.api_version}"
+        return f"{base}/api/projects/{self.project}/openai/responses?api-version={self.api_version}"
 
 
 @dataclass(frozen=True)
