@@ -16,7 +16,8 @@ set -euo pipefail
 # Required env vars (set before running or pass via --set-env-vars):
 #   AZURE_SPEECH_REGION    Region of the Speech Service (e.g. swedencentral)
 #   AZURE_SPEECH_RESOURCE_ID  Full resource ID of the Speech Service
-#   FOUNDRY_ENDPOINT       Foundry agent endpoint URL
+#   FOUNDRY_ENDPOINT       Foundry base endpoint URL
+#   FOUNDRY_PROJECT        Foundry project name
 #   FOUNDRY_AGENT_NAME     Name of the agent to call
 ###############################################################################
 
@@ -52,6 +53,7 @@ done
 : "${AZURE_SPEECH_REGION:?Set AZURE_SPEECH_REGION before running}"
 : "${AZURE_SPEECH_RESOURCE_ID:?Set AZURE_SPEECH_RESOURCE_ID before running}"
 : "${FOUNDRY_ENDPOINT:?Set FOUNDRY_ENDPOINT before running}"
+: "${FOUNDRY_PROJECT:?Set FOUNDRY_PROJECT before running}"
 : "${FOUNDRY_AGENT_NAME:?Set FOUNDRY_AGENT_NAME before running}"
 
 echo "==> Creating resource group: $RESOURCE_GROUP in $LOCATION"
@@ -80,6 +82,7 @@ az containerapp create \
     "AZURE_SPEECH_REGION=$AZURE_SPEECH_REGION" \
     "AZURE_SPEECH_RESOURCE_ID=$AZURE_SPEECH_RESOURCE_ID" \
     "FOUNDRY_ENDPOINT=$FOUNDRY_ENDPOINT" \
+    "FOUNDRY_PROJECT=$FOUNDRY_PROJECT" \
     "FOUNDRY_AGENT_NAME=$FOUNDRY_AGENT_NAME" \
   --output none
 
