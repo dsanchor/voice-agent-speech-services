@@ -78,6 +78,7 @@ class ClientSession:
     recognizer: Optional[speechsdk.SpeechRecognizer] = None
     previous_response_id: Optional[str] = None
     tts_stop_event: asyncio.Event = field(default_factory=asyncio.Event)
+    is_speaking: bool = False
     is_recognizing: bool = False
     stt_language: Optional[str] = None
     tts_voice: Optional[str] = None
@@ -166,43 +167,49 @@ async def voice_ws(ws: WebSocket) -> None:
 
         await _send_json(ws, {"type": "agent_response", "text": reply.text})
 
-        # TTS — sentence-by-sentence
+        # TTS — sentence-by-sentence, streamed immediately to client
         session.tts_stop_event.clear()
+        session.is_speaking = True
         await _send_json(ws, {"type": "status", "message": "Speaking…"})
         try:
+            # Queue for streaming audio from sync callback → async sender
+            audio_queue: asyncio.Queue[Optional[bytes]] = asyncio.Queue()
 
-            async def send_audio_chunk(audio_data: bytes) -> None:
-                if not session.tts_stop_event.is_set():
-                    b64 = base64.b64encode(audio_data).decode()
+            def on_sentence_audio(audio_data: bytes) -> None:
+                audio_queue.put_nowait(audio_data)
+
+            async def stream_audio_to_client() -> None:
+                """Send audio chunks to the WebSocket as they arrive."""
+                while True:
+                    chunk = await audio_queue.get()
+                    if chunk is None:  # Sentinel: synthesis done
+                        break
+                    if session.tts_stop_event.is_set():
+                        continue  # Drain queue but don't send
+                    b64 = base64.b64encode(chunk).decode()
                     await _send_json(
                         ws, {"type": "tts_audio", "data": b64, "format": "mp3"}
                     )
 
-            # We need a sync callback for synthesise_sentences, so collect and send
-            chunks: list[bytes] = []
-
-            def collect_chunk(audio_data: bytes) -> None:
-                chunks.append(audio_data)
+            # Run synthesis and streaming concurrently
+            sender_task = asyncio.create_task(stream_audio_to_client())
 
             await speech.synthesise_sentences(
                 reply.text,
-                on_audio_chunk=collect_chunk,
+                on_audio_chunk=on_sentence_audio,
                 stop_event=session.tts_stop_event,
                 voice=session.tts_voice,
             )
 
-            # Send collected chunks
-            for chunk in chunks:
-                if session.tts_stop_event.is_set():
-                    break
-                b64 = base64.b64encode(chunk).decode()
-                await _send_json(
-                    ws, {"type": "tts_audio", "data": b64, "format": "mp3"}
-                )
+            # Signal end of synthesis
+            audio_queue.put_nowait(None)
+            await sender_task
 
         except Exception as exc:
             logger.exception("TTS failed")
             await _send_json(ws, {"type": "error", "message": f"TTS error: {exc}"})
+        finally:
+            session.is_speaking = False
 
         await _send_json(ws, {"type": "tts_end"})
         await _send_json(ws, {"type": "status", "message": "Listening…"})
@@ -241,6 +248,13 @@ async def voice_ws(ws: WebSocket) -> None:
                         _send_json(ws, {"type": "recognizing", "text": text}),
                         loop,
                     )
+                    # Auto barge-in: if TTS is playing, stop it immediately
+                    if session.is_speaking and not session.tts_stop_event.is_set():
+                        session.tts_stop_event.set()
+                        asyncio.run_coroutine_threadsafe(
+                            _send_json(ws, {"type": "stop_playback"}),
+                            loop,
+                        )
 
                 def on_recognized(text: str) -> None:
                     asyncio.run_coroutine_threadsafe(

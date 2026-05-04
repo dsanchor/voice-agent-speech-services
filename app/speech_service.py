@@ -117,6 +117,8 @@ class SpeechService:
         """Synthesise *text* sentence-by-sentence, calling *on_audio_chunk* for each.
 
         Stops early if *stop_event* is set (user interrupted).
+        The callback is invoked immediately as each sentence completes synthesis,
+        enabling streaming playback without waiting for all sentences.
         """
         sentences = _SENTENCE_RE.split(text)
         # Filter empty strings

@@ -89,6 +89,11 @@ function handleServerMessage(msg) {
       stopSpeakBtn.disabled = playbackQueue.length === 0 && !isPlaying;
       break;
 
+    case "stop_playback":
+      // Server-initiated barge-in: user started speaking
+      stopPlayback();
+      break;
+
     case "error":
       setStatus(`⚠️ ${msg.message}`);
       break;
