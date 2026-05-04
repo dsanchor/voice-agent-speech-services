@@ -164,8 +164,11 @@ async function startMic() {
   micBtn.classList.add("listening");
   setState("listening");
 
-  // Barge-in: stop playback when user starts speaking
+  // Barge-in: stop playback and tell backend to stop TTS streaming
   player.stop();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stop_speaking" }));
+  }
 
   ws.send(JSON.stringify({ type: "start_mic" }));
 }

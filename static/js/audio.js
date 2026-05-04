@@ -64,10 +64,11 @@ class AudioPlayer {
     this.playing = false;
     this.ctx = null;
     this.currentSource = null;
+    this.generation = 0; // incremented on stop() to reject stale chunks
   }
 
   enqueue(base64Data) {
-    this.queue.push(base64Data);
+    this.queue.push({ data: base64Data, gen: this.generation });
     if (!this.playing) this._playNext();
   }
 
@@ -77,20 +78,30 @@ class AudioPlayer {
       return;
     }
     this.playing = true;
-    const b64 = this.queue.shift();
+    const item = this.queue.shift();
+
+    // Reject chunks from a previous generation (stale after stop)
+    if (item.gen < this.generation) {
+      this._playNext();
+      return;
+    }
 
     try {
       if (!this.ctx || this.ctx.state === "closed") {
         this.ctx = new AudioContext();
       }
-      const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const raw = Uint8Array.from(atob(item.data), (c) => c.charCodeAt(0));
       const buffer = await this.ctx.decodeAudioData(raw.buffer.slice(0));
+      const playGen = this.generation;
       this.currentSource = this.ctx.createBufferSource();
       this.currentSource.buffer = buffer;
       this.currentSource.connect(this.ctx.destination);
       this.currentSource.onended = () => {
         this.currentSource = null;
-        this._playNext();
+        // Only continue if we haven't been stopped
+        if (this.generation === playGen) {
+          this._playNext();
+        }
       };
       this.currentSource.start();
     } catch (err) {
@@ -101,6 +112,7 @@ class AudioPlayer {
   }
 
   stop() {
+    this.generation++;
     this.queue = [];
     if (this.currentSource) {
       try { this.currentSource.stop(); } catch (_) {}
