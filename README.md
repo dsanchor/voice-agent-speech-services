@@ -1,38 +1,101 @@
 # Voice Agent — Azure Speech Services + Foundry Responses API
 
-A voice-enabled web application that lets users speak to an AI agent. The browser captures audio, a FastAPI backend transcribes it with **Azure Speech Services (STT)**, sends the text to an **Azure AI Foundry agent via the Responses API**, then synthesises the reply back to speech **(TTS)** and streams it to the browser. Deployed to Azure Container Apps with managed identity — no API keys in config.
+A real-time voice-enabled web application that lets users have continuous conversations with an AI agent. The browser streams microphone audio over a WebSocket; a FastAPI backend performs **live speech-to-text** via the Azure Speech SDK (`PushAudioInputStream` + `start_continuous_recognition`), forwards final transcripts to an **Azure AI Foundry agent**, and returns **sentence-chunked TTS** audio back to the browser — all over a single persistent connection. Deployed to Azure Container Apps with managed identity — no API keys in config.
 
 ## Architecture
 
 ```
-┌─────────────┐         ┌──────────────────────┐         ┌───────────────────────┐
-│   Browser   │◄───────►│  Azure Container Apps │◄───────►│  Azure Speech Service │
-│  (HTML/JS)  │  HTTP   │  FastAPI (uvicorn)    │  SDK    │  STT & TTS            │
-│  Mic + WAV  │  + WS   │  Managed Identity     │         │                       │
-└─────────────┘         └──────────┬───────────┘         └───────────────────────┘
-                                   │
-                                   │ HTTPS (Bearer token)
-                                   ▼
-                        ┌───────────────────────┐
-                        │  Azure AI Foundry     │
-                        │  Responses API        │
-                        │  (Agent)              │
-                        └───────────────────────┘
+┌──────────────────┐            WebSocket (wss://)            ┌──────────────────────────┐
+│     Browser      │◄────────────────────────────────────────►│   Azure Container Apps   │
+│                  │  start_mic / audio / stop_mic / ...       │   FastAPI  (uvicorn)     │
+│  MediaRecorder   │  recognizing / recognized / tts_audio     │   Managed Identity       │
+│  16 kHz PCM      │                                          │                          │
+└──────────────────┘                                          └────────┬────────┬────────┘
+                                                                       │        │
+                                                            SDK        │        │  HTTPS
+                                                   (PushAudioStream)   │        │  (Bearer)
+                                                                       ▼        ▼
+                                                  ┌────────────────────────┐  ┌────────────────────┐
+                                                  │  Azure Speech Service  │  │  Azure AI Foundry  │
+                                                  │  • Continuous STT      │  │  Responses API     │
+                                                  │  • Sentence-chunked TTS│  │  (Agent)           │
+                                                  └────────────────────────┘  └────────────────────┘
 ```
 
-- **Frontend** — Static HTML/JS served by FastAPI. Captures 16 kHz mono PCM from the microphone, wraps it in WAV, and sends it over a WebSocket.
-- **Backend** — FastAPI app orchestrates the STT → Agent → TTS pipeline over a single persistent WebSocket connection per client.
-- **Identity** — System-assigned managed identity with least-privilege roles: `Cognitive Services Speech User` on the Speech resource and `Azure AI User` on the Foundry resource.
-- **CI/CD** — GitHub Actions builds and pushes container images to GitHub Packages (GHCR) on every push to `main`.
+### Key Design Decisions
+
+| Concern | Approach |
+|---------|----------|
+| **STT** | `PushAudioInputStream` fed with raw PCM chunks → `start_continuous_recognition()` for real-time partial + final results |
+| **Agent** | Foundry Responses API with `previous_response_id` for multi-turn context |
+| **TTS** | Sentence-split regex → synthesise each sentence independently → stream chunks to client as they complete |
+| **Auth** | `DefaultAzureCredential` / system-assigned managed identity, token auto-refresh via `TokenManager` |
+| **Transport** | Single WebSocket per client; JSON control messages + base64 audio payloads |
 
 ## How It Works
 
-1. User taps the record button; the browser captures audio at 16 kHz 16-bit mono PCM.
-2. On stop, the JS client wraps the PCM in a WAV header, base64-encodes it, and sends a JSON message over the WebSocket.
-3. The backend sends the audio to **Azure Speech STT** (via the Speech SDK with managed-identity token auth).
-4. The transcribed text is forwarded to the **Foundry agent** using the Responses API. Conversation context is maintained via `previous_response_id`.
-5. The agent's reply text is synthesised to MP3 using **Azure Speech TTS**.
-6. The MP3 bytes are base64-encoded and returned to the browser, which decodes and plays them.
+1. User clicks **Start Microphone** — the browser opens a `MediaRecorder` capturing 16 kHz 16-bit mono PCM and sends a `start_mic` message.
+2. Audio chunks are continuously base64-encoded and streamed to the server as `audio` messages.
+3. The backend writes chunks into a `PushAudioInputStream`; the Azure Speech SDK recognizer fires:
+   - **`recognizing`** events → partial transcript pushed to the client in real time.
+   - **`recognized`** events → final transcript triggers the agent pipeline.
+4. The final transcript is sent to the **Foundry agent** (Responses API). Conversation context is maintained via `previous_response_id`.
+5. The agent's reply is split into sentences and synthesised to MP3 via **Azure Speech TTS** — each sentence is sent as a `tts_audio` message as soon as it's ready (low time-to-first-audio).
+6. The browser decodes and queues audio chunks for gapless playback.
+7. User can click **Stop Microphone** at any time to pause recognition, or **Stop Speaking** to interrupt TTS playback mid-stream.
+
+## UI
+
+The single-page interface (`static/index.html`) provides:
+
+| Element | Description |
+|---------|-------------|
+| **Start / Stop Microphone** | Toggle continuous mic streaming (button changes state) |
+| **Stop Speaking** | Interrupts TTS playback immediately |
+| **Clear Chat** | Resets conversation history and agent context |
+| **Live Partial Transcript** | Shows in-progress recognition text in real time |
+| **Chat History** | Scrollable log of user utterances and agent responses |
+| **Connection Indicator** | Dot + label showing WebSocket connection status |
+
+## WebSocket Protocol
+
+All messages are JSON with a `type` field. Audio payloads are base64-encoded.
+
+### Client → Server
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `start_mic` | — | Begin continuous speech recognition |
+| `audio` | `data` (base64 PCM) | Raw 16 kHz 16-bit mono audio chunk |
+| `stop_mic` | — | Stop recognition, close audio stream |
+| `stop_speaking` | — | Interrupt TTS playback |
+| `clear_chat` | — | Reset conversation (`previous_response_id` cleared) |
+| `config` | `stt_language?`, `tts_voice?` | Update per-session STT/TTS settings |
+
+### Server → Client
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `recognizing` | `text` | Partial (interim) STT transcript |
+| `recognized` | `text` | Final STT transcript |
+| `agent_response` | `text` | Full agent reply text |
+| `tts_audio` | `data` (base64), `format` | One sentence of synthesised audio (MP3) |
+| `tts_end` | — | All TTS audio for this turn has been sent |
+| `status` | `message` | Informational status (e.g. "Listening…", "Thinking…") |
+| `error` | `message` | Error description |
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AZURE_SPEECH_REGION` | ✅ | — | Azure region of the Speech Service (e.g. `swedencentral`) |
+| `AZURE_SPEECH_RESOURCE_ID` | ✅ | — | Full ARM resource ID of the Speech Service |
+| `FOUNDRY_ENDPOINT` | ✅ | — | Foundry project endpoint (e.g. `https://<project>.services.ai.azure.com`) |
+| `FOUNDRY_AGENT_NAME` | ✅ | — | Name of the Foundry agent to invoke |
+| `STT_LANGUAGE` | ❌ | `en-US` | Default speech recognition language/locale |
+| `STT_LOCALES` | ❌ | `en-US` | Comma-separated locales for multi-language support |
+| `TTS_VOICE` | ❌ | `en-US-AvaMultilingualNeural` | Azure TTS voice name |
+| `TTS_OUTPUT_FORMAT` | ❌ | `audio-16khz-32kbitrate-mono-mp3` | TTS audio output format |
 
 ## Local Development
 
@@ -60,17 +123,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 Open <http://localhost:8000> in your browser.
 
 > **Note:** Local development uses `DefaultAzureCredential`, which will pick up your `az login` session, VS Code credentials, or environment variables. Ensure your identity has the required roles on the Speech and Foundry resources.
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `AZURE_SPEECH_REGION` | ✅ | — | Azure region of the Speech Service (e.g. `swedencentral`) |
-| `AZURE_SPEECH_RESOURCE_ID` | ✅ | — | Full ARM resource ID of the Speech Service |
-| `FOUNDRY_ENDPOINT` | ✅ | — | Foundry project endpoint (e.g. `https://<project>.services.ai.azure.com`) |
-| `FOUNDRY_AGENT_NAME` | ✅ | — | Name of the Foundry agent to invoke |
-| `STT_LANGUAGE` | ❌ | `en-US` | Speech recognition language/locale |
-| `TTS_OUTPUT_FORMAT` | ❌ | `audio-16khz-32kbitrate-mono-mp3` | TTS audio output format |
 
 ## Deployment
 
@@ -136,8 +188,8 @@ voice-agent-speech-services/
 │       └── build-and-push.yml    # CI/CD: build & push to GHCR
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                   # FastAPI app, WebSocket endpoint, lifespan
-│   ├── speech_service.py         # Azure Speech SDK wrapper (STT + TTS)
+│   ├── main.py                   # FastAPI app, WebSocket endpoint, streaming STT loop
+│   ├── speech_service.py         # Azure Speech SDK: continuous STT + sentence-chunked TTS
 │   ├── agent_client.py           # Foundry Responses API client
 │   ├── token_manager.py          # Managed-identity token cache with auto-refresh
 │   ├── config.py                 # Dataclass settings from env vars
