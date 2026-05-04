@@ -53,10 +53,9 @@ class AgentClient:
         token = await self._token_mgr.get_token()
 
         body: dict[str, Any] = {
-            "input": [{"role": "user", "content": user_text}],
-            "agent_reference": {
+            "input": user_text,
+            "agent": {
                 "name": self._cfg.agent_name,
-                "version": self._cfg.agent_version,
                 "type": "agent_reference",
             },
         }

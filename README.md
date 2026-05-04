@@ -93,7 +93,6 @@ All messages are JSON with a `type` field. Audio payloads are base64-encoded.
 | `FOUNDRY_ENDPOINT` | ✅ | — | Foundry base endpoint (e.g. `https://my-foundry.services.ai.azure.com/api/projects`) |
 | `FOUNDRY_PROJECT` | ✅ | — | Foundry project name (e.g. `my-project`) |
 | `FOUNDRY_AGENT_NAME` | ✅ | — | Name of the Foundry agent to invoke |
-| `FOUNDRY_AGENT_VERSION` | ❌ | `1` | Version of the Foundry agent |
 | `FOUNDRY_API_VERSION` | ❌ | `2025-03-01-preview` | Responses API version |
 | `STT_LANGUAGE` | ❌ | `en-US` | Default speech recognition language/locale |
 | `STT_LOCALES` | ❌ | `en-US` | Comma-separated locales for multi-language support |
