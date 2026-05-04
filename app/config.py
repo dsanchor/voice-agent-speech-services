@@ -41,6 +41,7 @@ class AgentConfig:
     """Foundry agent (Responses API) configuration."""
 
     endpoint: str = field(default_factory=lambda: os.environ["FOUNDRY_ENDPOINT"])
+    project: str = field(default_factory=lambda: os.environ["FOUNDRY_PROJECT"])
     agent_name: str = field(default_factory=lambda: os.environ["FOUNDRY_AGENT_NAME"])
     agent_version: str = field(
         default_factory=lambda: os.getenv("FOUNDRY_AGENT_VERSION", "1")
@@ -52,7 +53,7 @@ class AgentConfig:
     @property
     def responses_url(self) -> str:
         base = self.endpoint.rstrip("/")
-        return f"{base}/openai/responses?api-version={self.api_version}"
+        return f"{base}/{self.project}/openai/responses?api-version={self.api_version}"
 
 
 @dataclass(frozen=True)

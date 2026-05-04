@@ -90,7 +90,8 @@ All messages are JSON with a `type` field. Audio payloads are base64-encoded.
 |----------|----------|---------|-------------|
 | `AZURE_SPEECH_REGION` | ✅ | — | Azure region of the Speech Service (e.g. `swedencentral`) |
 | `AZURE_SPEECH_RESOURCE_ID` | ✅ | — | Full ARM resource ID of the Speech Service |
-| `FOUNDRY_ENDPOINT` | ✅ | — | Foundry project endpoint (e.g. `https://my-foundry.services.ai.azure.com/api/projects/my-project`) |
+| `FOUNDRY_ENDPOINT` | ✅ | — | Foundry base endpoint (e.g. `https://my-foundry.services.ai.azure.com/api/projects`) |
+| `FOUNDRY_PROJECT` | ✅ | — | Foundry project name (e.g. `my-project`) |
 | `FOUNDRY_AGENT_NAME` | ✅ | — | Name of the Foundry agent to invoke |
 | `FOUNDRY_AGENT_VERSION` | ❌ | `1` | Version of the Foundry agent |
 | `FOUNDRY_API_VERSION` | ❌ | `2025-03-01-preview` | Responses API version |
@@ -146,7 +147,8 @@ The script at `infra/deploy.sh` provisions and deploys the full stack in a singl
 ```bash
 export AZURE_SPEECH_REGION="swedencentral"
 export AZURE_SPEECH_RESOURCE_ID="/subscriptions/.../Microsoft.CognitiveServices/accounts/my-speech"
-export FOUNDRY_ENDPOINT="https://my-foundry.services.ai.azure.com/api/projects/my-project"
+export FOUNDRY_ENDPOINT="https://my-foundry.services.ai.azure.com/api/projects"
+export FOUNDRY_PROJECT="my-project"
 export FOUNDRY_AGENT_NAME="my-agent"
 
 ./infra/deploy.sh \
