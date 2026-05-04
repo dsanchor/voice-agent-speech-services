@@ -24,4 +24,19 @@
 - WAV header wrapping enables direct `PushAudioInputStream` consumption without format negotiation
 - MP3 output avoids browser-side PCM plumbing complexity
 - Thread pool isolation critical for FastAPI + synchronous SDK calls
+- Foundry Responses API URL pattern: `{FOUNDRY_ENDPOINT}/{FOUNDRY_PROJECT}/openai/responses?api-version=...` — endpoint and project are separate env vars (2026-05-04)
+- `agent_client.py` delegates all URL construction to `AgentConfig.responses_url` property — no inline URL building
+
+
+## Follow-Up: Config Refactoring (2026-05-04T19:29:31Z)
+
+**Completion:** Foundry URL construction refactored.
+
+- Separated `FOUNDRY_PROJECT` from `FOUNDRY_ENDPOINT`
+- Updated `app/config.py` (responses_url property)
+- Updated `.env.example` and `infra/deploy.sh`
+- Decision accepted: "Split FOUNDRY_PROJECT from FOUNDRY_ENDPOINT"
+- **Commit:** 2a2726c
+
+**Impact:** All deployments now require both env vars. URL pattern remains: `{FOUNDRY_ENDPOINT}/{FOUNDRY_PROJECT}/openai/responses?api-version=...`
 

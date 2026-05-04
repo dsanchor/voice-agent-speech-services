@@ -27,3 +27,11 @@
 - Dual-role setup (one per service) enables fine-grained access control
 - `DefaultAzureCredential` transparent auth requires proper RBAC scoping
 
+
+## Cross-Agent Update (2026-05-04T19:29:31Z)
+
+**From:** Dallas (Backend Dev)  
+**Topic:** Config Refactoring
+
+Dallas refactored Foundry URL construction to separate `FOUNDRY_ENDPOINT` and `FOUNDRY_PROJECT` env vars. `infra/deploy.sh` now exports both. Update your deploy verification to confirm `FOUNDRY_PROJECT` is set in Container App environment.
+
