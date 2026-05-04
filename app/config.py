@@ -42,7 +42,12 @@ class AgentConfig:
 
     endpoint: str = field(default_factory=lambda: os.environ["FOUNDRY_ENDPOINT"])
     agent_name: str = field(default_factory=lambda: os.environ["FOUNDRY_AGENT_NAME"])
-    api_version: str = "2025-11-15-preview"
+    agent_version: str = field(
+        default_factory=lambda: os.getenv("FOUNDRY_AGENT_VERSION", "1")
+    )
+    api_version: str = field(
+        default_factory=lambda: os.getenv("FOUNDRY_API_VERSION", "2025-03-01-preview")
+    )
 
     @property
     def responses_url(self) -> str:

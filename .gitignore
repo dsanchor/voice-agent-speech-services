@@ -7,3 +7,5 @@
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
 __pycache__/
+.env
+=2.0.0

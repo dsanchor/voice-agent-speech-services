@@ -53,9 +53,10 @@ class AgentClient:
         token = await self._token_mgr.get_token()
 
         body: dict[str, Any] = {
-            "input": user_text,
-            "agent": {
+            "input": [{"role": "user", "content": user_text}],
+            "agent_reference": {
                 "name": self._cfg.agent_name,
+                "version": self._cfg.agent_version,
                 "type": "agent_reference",
             },
         }
@@ -86,8 +87,13 @@ class AgentClient:
     def _parse_response(data: dict[str, Any]) -> AgentReply:
         """Extract the agent's text reply from the Responses API payload."""
         response_id = data.get("id", "")
-        output_items: list[dict[str, Any]] = data.get("output", [])
 
+        # Try top-level output_text first (convenience field)
+        if data.get("output_text"):
+            return AgentReply(text=data["output_text"], response_id=response_id)
+
+        # Fall back to parsing output array
+        output_items: list[dict[str, Any]] = data.get("output", [])
         for item in output_items:
             if item.get("type") == "message":
                 content_blocks = item.get("content", [])
