@@ -45,7 +45,9 @@ class SpeechService:
     async def _get_speech_config(self) -> speechsdk.SpeechConfig:
         """Build a SpeechConfig authenticated with a fresh managed-identity token."""
         token = await self._token_mgr.get_token()
-        config = speechsdk.SpeechConfig(auth_token=token, region=self._cfg.region)
+        auth_token = f"aad#{self._cfg.resource_id}#{token}"
+        logger.debug("Using AAD token for resource: %s", self._cfg.resource_id)
+        config = speechsdk.SpeechConfig(auth_token=auth_token, region=self._cfg.region)
         config.speech_recognition_language = self._cfg.stt_language
         return config
 
