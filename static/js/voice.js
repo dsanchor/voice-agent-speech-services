@@ -110,7 +110,13 @@ function handleMessage(msg) {
       break;
 
     case "tts_end":
-      if (!player.isPlaying) setState(micActive ? "listening" : "idle");
+      if (greetingPending) {
+        greetingPending = false;
+        setState("idle");
+        startMic();
+      } else if (!player.isPlaying) {
+        setState(micActive ? "listening" : "idle");
+      }
       break;
 
     case "stop_playback":
@@ -214,6 +220,8 @@ function showToast(message, type = "info") {
 
 // ── Proactive Greeting ────────────────────────────────────────────────
 
+let greetingPending = false;
+
 function playGreeting() {
   if (config.enableProactiveGreeting === false) return;
   const text = config.proactiveGreetingText || "Hello! How can I help you today?";
@@ -221,23 +229,10 @@ function playGreeting() {
   // Show greeting in transcript
   addBubble("agent", text);
 
-  if (!window.speechSynthesis) {
-    startMic();
-    return;
-  }
-
+  // Send greeting to backend for TTS using the same voice as agent responses
   setState("speaking");
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = config.sttLanguage || "en-US";
-  utterance.onend = () => {
-    setState("idle");
-    startMic();
-  };
-  utterance.onerror = () => {
-    setState("idle");
-    startMic();
-  };
-  speechSynthesis.speak(utterance);
+  greetingPending = true;
+  ws.send(JSON.stringify({ type: "greeting", text: text }));
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────

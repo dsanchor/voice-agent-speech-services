@@ -307,6 +307,50 @@ async def voice_ws(ws: WebSocket) -> None:
                 await session.stop_recognition()
                 await _send_json(ws, {"type": "status", "message": "Microphone stopped"})
 
+            elif msg_type == "greeting":
+                # Proactive greeting: TTS the provided text without invoking the agent
+                greeting_text = msg.get("text", "").strip()
+                if greeting_text:
+                    session.tts_stop_event.clear()
+                    session.is_speaking = True
+                    try:
+                        audio_queue_g: asyncio.Queue[Optional[bytes]] = asyncio.Queue()
+
+                        def on_greeting_audio(audio_data: bytes) -> None:
+                            audio_queue_g.put_nowait(audio_data)
+
+                        async def stream_greeting_to_client() -> None:
+                            while True:
+                                chunk = await audio_queue_g.get()
+                                if chunk is None:
+                                    break
+                                if session.tts_stop_event.is_set():
+                                    continue
+                                b64 = base64.b64encode(chunk).decode()
+                                await _send_json(
+                                    ws, {"type": "tts_audio", "data": b64, "format": "mp3"}
+                                )
+
+                        sender_task_g = asyncio.create_task(stream_greeting_to_client())
+
+                        await speech.synthesise_sentences(
+                            greeting_text,
+                            on_audio_chunk=on_greeting_audio,
+                            stop_event=session.tts_stop_event,
+                            voice=session.tts_voice,
+                        )
+
+                        audio_queue_g.put_nowait(None)
+                        await sender_task_g
+
+                    except Exception as exc:
+                        logger.exception("Greeting TTS failed")
+                        await _send_json(ws, {"type": "error", "message": f"Greeting TTS error: {exc}"})
+                    finally:
+                        session.is_speaking = False
+
+                    await _send_json(ws, {"type": "tts_end"})
+
             elif msg_type == "stop_speaking":
                 session.tts_stop_event.set()
                 await _send_json(ws, {"type": "status", "message": "Stopped speaking"})

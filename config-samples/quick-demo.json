@@ -1,0 +1,12 @@
+{
+  "speechRegion": "swedencentral",
+  "speechResourceId": "/subscriptions/d430bc5e-56c0-4ed0-bfd9-89b2732ef047/resourceGroups/voice-agent-speech-services-rg/providers/Microsoft.CognitiveServices/accounts/speech4agents",
+  "foundryEndpoint": "https://ai-innovation-labs-foundry.services.ai.azure.com",
+  "foundryProject": "ai-innovation-labs",
+  "foundryAgentName": "DemoQuick",
+  "foundryApiVersion": "2025-11-15-preview",
+  "ttsOutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+  "sttLanguage": "es-ES",
+  "sttLocales": "es-ES",
+  "ttsVoice": "es-ES-Ximena:DragonHDLatestNeural"
+}
